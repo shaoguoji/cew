@@ -10,7 +10,6 @@ pnpm-debug.log*
 
 # Build output
 dist/
-cew
 
 # TypeScript cache
 *.tsbuildinfo
