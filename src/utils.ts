@@ -1,5 +1,5 @@
 import os from 'os';
-import { createPublicClient, createWalletClient, http } from 'viem';
+// Imports cleaned up
 import { sepolia } from 'viem/chains';
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -16,11 +16,7 @@ if (!fs.existsSync(HOME_DIR)) {
 
 export const ENV_PATH = path.join(HOME_DIR, '.env');
 
-// Public client for reading data (balance, nonce, etc.)
-export const publicClient = createPublicClient({
-    chain: sepolia,
-    transport: http(process.env.RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'),
-});
+// Public client removed in favor of dynamic client in networkManager
 
 // Helper to update .env calculation
 export function updateEnv(key: string, value: string) {

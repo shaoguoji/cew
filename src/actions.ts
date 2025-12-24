@@ -1,12 +1,12 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { publicClient, savePrivateKey, loadPrivateKey, saveTokenAddress, loadTokenAddress } from './utils';
+import { savePrivateKey, saveTokenAddress, loadTokenAddress } from './utils';
 import { getActiveViemAccount } from './walletManager';
-import { createWalletClient, http, parseEther, parseAbi, formatEther, parseGwei } from 'viem';
-import { sepolia } from 'viem/chains';
+import { getPublicClient, getWalletClient, getActiveNetwork } from './networkManager';
+import { parseEther, parseAbi, formatEther, parseGwei } from 'viem';
 import chalk from 'chalk';
 import ora from 'ora';
 
-// 1. Generate Wallet
+// 1. Generate Wallet (No changes needed, generation is offline)
 export async function generateWallet() {
     const spinner = ora('Generating new wallet...').start();
     try {
@@ -40,14 +40,16 @@ export async function getBalance(address?: string) {
         }
     }
 
-    const spinner = ora(`Fetching balance for ${address}...`).start();
+    const network = getActiveNetwork();
+    const publicClient = getPublicClient();
+    const spinner = ora(`Fetching balance for ${address} on ${network.name}...`).start();
     try {
         const balance = await publicClient.getBalance({
             address: address as `0x${string}`,
         });
 
         spinner.stop();
-        console.log(chalk.blue(`ETH Balance: ${formatEther(balance)} ETH`));
+        console.log(chalk.blue(`${network.symbol} Balance: ${formatEther(balance)} ${network.symbol}`));
 
         // Check for ERC20
         const tokenAddress = loadTokenAddress();
@@ -106,22 +108,19 @@ export async function transferERC20(tokenAddress: string, toAddress: string, amo
         return;
     }
 
-    const walletClient = createWalletClient({
-        account,
-        chain: sepolia,
-        transport: http(process.env.RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'),
-    });
+    const walletClient = getWalletClient(account);
+    const publicClient = getPublicClient();
 
     const spinner = ora('Preparing transaction...').start();
 
     try {
         // ERC20 Transfer ABI
-        const abi = parseAbi(['function transfer(address to, uint256 value) returns (bool)']);
+        const abi = parseAbi(['function transfer(address to, uint256 value) returns (bool)', 'function decimals() view returns (uint8)']);
 
-        // Fetch decimals
+        // Fetch decimals using public client
         const decimals = await publicClient.readContract({
             address: tokenAddress as `0x${string}`,
-            abi: parseAbi(['function decimals() view returns (uint8)']),
+            abi,
             functionName: 'decimals',
         }) as number;
 
@@ -132,18 +131,24 @@ export async function transferERC20(tokenAddress: string, toAddress: string, amo
         spinner.text = 'Sending transaction...';
 
         const hash = await walletClient.writeContract({
+            account,
             address: tokenAddress as `0x${string}`,
             abi,
             functionName: 'transfer',
             args: [toAddress as `0x${string}`, value],
-            chain: sepolia,
+            // chain is embedded in client
             maxFeePerGas,
             maxPriorityFeePerGas,
         });
 
         spinner.succeed(chalk.green('Transaction sent!'));
+        const network = getActiveNetwork();
         console.log(chalk.yellow('Tx Hash:'), hash);
-        console.log(chalk.blue(`Explorer: https://sepolia.etherscan.io/tx/${hash}`));
+        if (network.explorerUrl) {
+            console.log(chalk.blue(`Explorer: ${network.explorerUrl}/tx/${hash}`));
+        } else {
+            console.log(chalk.gray('Explorer URL not configured for this network'));
+        }
 
     } catch (error) {
         spinner.fail('Transfer failed');
@@ -161,32 +166,34 @@ export async function transferETH(toAddress: string, amount: string, maxFeePerGa
         return;
     }
 
-    const walletClient = createWalletClient({
-        account,
-        chain: sepolia,
-        transport: http(process.env.RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com'),
-    });
+    const walletClient = getWalletClient(account);
 
-    const spinner = ora('Preparing ETH transaction...').start();
+    const spinner = ora('Preparing Native Token transaction...').start();
 
     try {
         const value = parseEther(amount);
         const maxFeePerGas = maxFeePerGasGwei ? parseGwei(maxFeePerGasGwei) : undefined;
         const maxPriorityFeePerGas = maxPriorityFeePerGasGwei ? parseGwei(maxPriorityFeePerGasGwei) : undefined;
 
-        spinner.text = 'Sending ETH...';
+        spinner.text = 'Sending...';
 
         const hash = await walletClient.sendTransaction({
+            account,
             to: toAddress as `0x${string}`,
             value,
             maxFeePerGas,
             maxPriorityFeePerGas,
-            chain: sepolia,
+            // chain embedded
         });
 
-        spinner.succeed(chalk.green('ETH Transaction sent!'));
+        spinner.succeed(chalk.green('Transaction sent!'));
+        const network = getActiveNetwork();
         console.log(chalk.yellow('Tx Hash:'), hash);
-        console.log(chalk.blue(`Explorer: https://sepolia.etherscan.io/tx/${hash}`));
+        if (network.explorerUrl) {
+            console.log(chalk.blue(`Explorer: ${network.explorerUrl}/tx/${hash}`));
+        } else {
+            console.log(chalk.gray('Explorer URL not configured for this network'));
+        }
 
     } catch (error) {
         spinner.fail('Transfer failed');

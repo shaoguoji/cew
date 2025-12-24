@@ -22,10 +22,21 @@ export interface Wallet {
     name: string;
 }
 
+export interface Network {
+    id: string;
+    name: string;
+    rpcUrl: string;
+    chainId: number;
+    symbol: string;
+    explorerUrl?: string;
+}
+
 export interface StorageData {
     activeWalletId?: string;
     activeAccountAddress?: string;
+    activeNetworkId?: string;
     wallets: Wallet[];
+    networks: Network[];
 }
 
 // Session State
@@ -71,7 +82,11 @@ export function unlockStore(password: string) {
     if (!fs.existsSync(WALLET_FILE)) {
         currentSalt = crypto.randomBytes(SALT_LEN);
         sessionKey = deriveKey(password, currentSalt);
-        cachedData = { wallets: [] };
+        const defaultNetworks: Network[] = [
+            { id: 'sepolia', name: 'Sepolia', rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com', chainId: 11155111, symbol: 'ETH', explorerUrl: 'https://sepolia.etherscan.io' },
+            { id: 'anvil', name: 'Anvil (Local)', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337, symbol: 'ETH' }
+        ];
+        cachedData = { wallets: [], networks: defaultNetworks, activeNetworkId: 'sepolia' };
 
         // Save initial
         saveStore(cachedData);
@@ -102,6 +117,16 @@ export function unlockStore(password: string) {
             decrypted += decipher.final('utf8');
             cachedData = JSON.parse(decrypted);
             sessionKey = key; // Auth success
+
+            // Migration: Ensure networks exist
+            if (!cachedData!.networks) {
+                cachedData!.networks = [
+                    { id: 'sepolia', name: 'Sepolia', rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com', chainId: 11155111, symbol: 'ETH', explorerUrl: 'https://sepolia.etherscan.io' },
+                    { id: 'anvil', name: 'Anvil (Local)', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337, symbol: 'ETH' }
+                ];
+                cachedData!.activeNetworkId = 'sepolia';
+                saveStore(cachedData!); // Save migration immediately
+            }
         } catch (e) {
             throw new Error('Incorrect password');
         }

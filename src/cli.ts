@@ -20,6 +20,7 @@ import {
 // ... imports
 // ... imports
 import { waitForKeypress, cancellablePrompt, CancelError, loadTokenAddress } from './utils';
+import { addNetwork, switchNetwork, listNetworks, getActiveNetwork } from './networkManager';
 
 const program = new Command();
 const ui = new inquirer.ui.BottomBar();
@@ -29,11 +30,18 @@ function updateStatus() {
 
     let wInfo = chalk.red('No Wallet');
     let aInfo = chalk.red('No Account');
-    let net = chalk.green('Sepolia');
+    let net = chalk.green('Unknown Network');
 
     try {
         const wallet = getActiveWallet();
         const account = getActiveAccount();
+        // Try to get network safely
+        try {
+            const network = getActiveNetwork();
+            net = chalk.green(network.name);
+        } catch {
+            net = chalk.red('No Network');
+        }
 
         if (wallet) wInfo = chalk.cyan(wallet.name) + chalk.gray(` (${wallet.type})`);
         if (account) {
@@ -183,6 +191,10 @@ async function startup() {
 async function mainMenu() {
     printHeader();
 
+    // ... imports
+    // Imports moved to top
+
+    // ... (inside mainMenu)
     try {
         const { action } = await cancellablePrompt([
             {
@@ -195,6 +207,7 @@ async function mainMenu() {
                     'Transfer ETH',
                     'Transfer ERC20',
                     'Set ERC20 Contract Address',
+                    'Network Settings',
                     'Exit'
                 ]
             }
@@ -215,6 +228,9 @@ async function mainMenu() {
                 break;
             case 'Set ERC20 Contract Address':
                 await safeRun(async () => { await handleSetToken(); });
+                break;
+            case 'Network Settings':
+                await networkMenu();
                 break;
             case 'Exit':
                 console.log('Bye!');
@@ -598,6 +614,74 @@ async function handleSetToken() {
         validate: input => input.startsWith('0x') && input.length === 42 || 'Invalid address format'
     }]);
     await setTokenAddress(tokenAddress);
+}
+
+async function networkMenu() {
+    printHeader();
+    console.log(chalk.bold('❯ Network Settings\n'));
+
+    try {
+        const { action } = await cancellablePrompt([{
+            type: 'list',
+            name: 'action',
+            message: 'Option:',
+            choices: [
+                'Switch Network',
+                'Add Custom Network',
+                'List Networks',
+                'Back'
+            ]
+        }]);
+
+        switch (action) {
+            case 'Switch Network':
+                await safeRun(handleSwitchNetwork);
+                break;
+            case 'Add Custom Network':
+                await safeRun(handleAddNetwork);
+                break;
+            case 'List Networks':
+                const networks = listNetworks();
+                console.table(networks.map(n => ({ Name: n.name, ID: n.id, RPC: n.rpcUrl, ChainID: n.chainId })));
+                await waitForKeypress();
+                break;
+            case 'Back':
+                return;
+        }
+
+        await networkMenu();
+
+    } catch (e) {
+        if (e instanceof CancelError) return;
+        throw e;
+    }
+}
+
+async function handleSwitchNetwork() {
+    const networks = listNetworks();
+    const { id } = await cancellablePrompt([{
+        type: 'list',
+        name: 'id',
+        message: 'Select Network:',
+        choices: networks.map(n => ({ name: `${n.name} (${n.rpcUrl})`, value: n.id }))
+    }]);
+
+    switchNetwork(id);
+    console.log(chalk.green('Network switched!'));
+    updateStatus();
+}
+
+async function handleAddNetwork() {
+    const answers = await cancellablePrompt([
+        { type: 'input', name: 'name', message: 'Network Name:' },
+        { type: 'input', name: 'rpcUrl', message: 'RPC URL:' },
+        { type: 'input', name: 'chainId', message: 'Chain ID:' },
+        { type: 'input', name: 'symbol', message: 'Currency Symbol (default ETH):', default: 'ETH' },
+        { type: 'input', name: 'explorerUrl', message: 'Explorer URL (optional):' }
+    ]);
+
+    addNetwork(answers.name, answers.rpcUrl, parseInt(answers.chainId), answers.symbol, answers.explorerUrl);
+    console.log(chalk.green('Network added successfully!'));
 }
 
 // Start
