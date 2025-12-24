@@ -11,6 +11,15 @@ It features secure encrypted storage for managing multiple wallets and accounts.
     - **HD Wallets**: Generate BIP-39 seed phrases and derived accounts.
     - **Import**: Import existing Seed Phrases, Private Keys, or Keystore Files.
     - **Switching**: Easily toggle between different wallets and accounts.
+- 🌐 **Network Management**:
+    - **Custom Networks**: Add any EVM-compatible chain (RPC, ChainID).
+    - **Switching**: Toggle between Sepolia, Anvil, or your custom networks.
+    - **Persistence**: Remembers your active network.
+- 🪙 **Token Management**:
+    - **Multi-Token Support**: Manage list of ERC20 tokens per network.
+    - **Unified Balance**: See ETH and all tracked token balances in one view.
+    - **Easy Transfers**: Select tokens directly from your list.
+- 🗑️ **Deletion**: Safely remove unused wallets, accounts, or networks.
 - 💰 **Assets**: Check ETH balances and transfer ERC-20 tokens.
 - 💨 **EIP-1559**: Supports modern gas fee transactions.
 - 🧰 **Standalone Executable**: Build a binary that runs without Node.js.
@@ -23,7 +32,7 @@ It features secure encrypted storage for managing multiple wallets and accounts.
 
 1. Navigate to the project directory:
    ```bash
-   cd Day12/CLIWallet
+   cd cew
    ```
 
 2. Install dependencies:
@@ -42,14 +51,16 @@ On first run, you will be prompted to **create a password** to secure your walle
 
 **Main Menu Options:**
 - **Wallet And Account**: Manage your identities.
-    - *Generate New Wallet*: Create a new HD Wallet.
+    - *Generate New Wallet*: Create a new HD Wallet (batch generates first 10 accounts).
     - *Import*: Bring in existing keys/seeds.
     - *Switch*: Change active wallet/account.
+    - *Delete*: Remove unwanted wallets or accounts.
     - *Export*: View seed phrases or private keys (requires password).
-- **Check Balance**: View native ETH balance.
+- **Check Balance**: View native ETH and managed Token balances.
 - **Transfer ETH**: Send native currency.
-- **Transfer ERC20**: Send tokens (e.g., USDC, UNI).
-- **Set ERC20 Contract**: Configure which token to interact with.
+- **Transfer ERC20**: Send tokens (select from managed list or enter custom address).
+- **Manage Tokens**: Add/Remove tokens for the current network.
+- **Network Settings**: Switch networks, add custom RPCs, or remove networks.
 
 ### Building Executable
 
@@ -67,7 +78,7 @@ You can compile the wallet into a single executable file (binary) for easy distr
 
 ## Architecture
 
-- **`data/wallets.json`**: Stores your encrypted wallet data. **Do not delete this if you want to keep your accounts.**
+- **`~/.cew/data/wallets.json`**: Stores your encrypted wallet data globally. **Do not delete this if you want to keep your accounts.**
 - **Password**: The encryption key is derived from your password. **If you lose your password, you lose access to your local data.**
 
 ## Development
