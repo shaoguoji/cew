@@ -23,7 +23,7 @@ import {
 // ... imports
 // ... imports
 import { waitForKeypress, cancellablePrompt, CancelError, loadTokenAddress } from './utils';
-import { addNetwork, switchNetwork, listNetworks, getActiveNetwork } from './networkManager';
+import { addNetwork, switchNetwork, listNetworks, getActiveNetwork, deleteActiveNetwork } from './networkManager';
 
 const program = new Command();
 const ui = new inquirer.ui.BottomBar();
@@ -794,6 +794,7 @@ async function networkMenu() {
                 'Switch Network',
                 'Add Custom Network',
                 'List Networks',
+                'Delete Current Network',
                 'Back'
             ]
         }]);
@@ -810,6 +811,9 @@ async function networkMenu() {
                 console.table(networks.map(n => ({ Name: n.name, ID: n.id, RPC: n.rpcUrl, ChainID: n.chainId })));
                 await waitForKeypress();
                 break;
+            case 'Delete Current Network':
+                await safeRun(handleDeleteNetwork);
+                break;
             case 'Back':
                 return;
         }
@@ -820,6 +824,29 @@ async function networkMenu() {
         if (e instanceof CancelError) return;
         throw e;
     }
+}
+
+async function handleDeleteNetwork() {
+    const { getActiveNetwork } = require('./networkManager');
+    const net = getActiveNetwork();
+
+    console.log(chalk.red.bold(`\nWARNING: You are about to delete the network config for "${net.name}".`));
+
+    const { confirm } = await cancellablePrompt([{
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Are you sure?',
+        default: false
+    }]);
+
+    if (confirm) {
+        deleteActiveNetwork();
+        console.log(chalk.green('Network deleted. Switched back to Sepolia.'));
+        updateStatus();
+    } else {
+        console.log(chalk.gray('Cancelled.'));
+    }
+    await waitForKeypress();
 }
 
 async function handleSwitchNetwork() {

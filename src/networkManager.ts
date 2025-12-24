@@ -86,3 +86,17 @@ export function listNetworks() {
     const store = loadStore();
     return store.networks;
 }
+
+export function deleteActiveNetwork() {
+    const store = loadStore();
+    const networkId = store.activeNetworkId;
+
+    if (!networkId) throw new Error('No active network');
+    if (networkId === 'sepolia' || networkId === 'anvil') {
+        throw new Error('Cannot delete default networks (Sepolia, Anvil)');
+    }
+
+    store.networks = store.networks.filter(n => n.id !== networkId);
+    store.activeNetworkId = 'sepolia'; // Fallback to safe default
+    saveStore(store);
+}
