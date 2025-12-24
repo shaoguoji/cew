@@ -22,7 +22,15 @@ It features secure encrypted storage for managing multiple wallets and accounts.
 - 🗑️ **Deletion**: Safely remove unused wallets, accounts, or networks.
 - 💰 **Assets**: Check ETH balances and transfer ERC-20 tokens.
 - 💨 **EIP-1559**: Supports modern gas fee transactions.
+- 🦊 **MetaMask Compatible**: Seamlessly import/export accounts between CEW and MetaMask.
 - 🧰 **Standalone Executable**: Build a binary that runs without Node.js.
+
+## 🦊 MetaMask Compatibility
+
+CEW is designed to be fully compatible with MetaMask, giving you the flexibility of a CLI with the interoperability of a browser wallet:
+- **Same Mnemonic**: Generate a wallet in CEW and import the same 12-word seed phrase into MetaMask (or vice versa) to access the exact same accounts.
+- **Standard Derivation**: Uses the standard BIP-44 path `m/44'/60'/0'/0/x` just like MetaMask, so your addresses always match.
+- **Portable**: Export your private keys from CEW and drop them into MetaMask for browser usage anytime.
 
 ## Prerequisites
 - Node.js (v18 or higher)
