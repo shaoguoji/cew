@@ -205,12 +205,12 @@ async function mainMenu() {
                 name: 'action',
                 message: 'What would you like to do?',
                 choices: [
-                    'Wallet And Account',
                     'Check Balance',
                     'Transfer ETH',
                     'Transfer ERC20',
                     'Manage Tokens',
                     'Network Settings',
+                    'Wallet And Account',
                     'Exit'
                 ]
             }
@@ -261,10 +261,10 @@ async function walletMenu() {
                 name: 'action',
                 message: 'Select Option:',
                 choices: [
-                    'Generate New Wallet',
-                    'Generate New Account',
-                    'Switch Wallet',
                     'Switch Account',
+                    'Switch Wallet',
+                    'Generate New Account',
+                    'Generate New Wallet',
                     'Import',
                     'Export Account',
                     'Export Wallet',
