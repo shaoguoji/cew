@@ -1,3 +1,4 @@
+import os from 'os';
 import { createPublicClient, createWalletClient, http } from 'viem';
 import { sepolia } from 'viem/chains';
 import dotenv from 'dotenv';
@@ -6,9 +7,14 @@ import chalk from 'chalk';
 import path from 'path';
 import inquirer, { QuestionCollection } from 'inquirer';
 
-dotenv.config();
+dotenv.config({ path: path.join(os.homedir(), '.cew', '.env') });
 
-export const ENV_PATH = path.join(process.cwd(), '.env');
+const HOME_DIR = path.join(os.homedir(), '.cew');
+if (!fs.existsSync(HOME_DIR)) {
+    fs.mkdirSync(HOME_DIR, { recursive: true });
+}
+
+export const ENV_PATH = path.join(HOME_DIR, '.env');
 
 // Public client for reading data (balance, nonce, etc.)
 export const publicClient = createPublicClient({
@@ -92,13 +98,23 @@ export function cancellablePrompt<T = any>(questions: QuestionCollection): Promi
 
         // Handle ESC
         if (ui && ui.rl) {
-            ui.rl.input.on('keypress', (_: any, key: any) => {
+            const keypressHandler = (_: any, key: any) => {
                 if (key && key.name === 'escape') {
-                    // Close the prompt prompt UI
                     try { ui.close(); } catch { }
                     reject(new CancelError());
                 }
-            });
+            };
+
+            ui.rl.input.on('keypress', keypressHandler);
+
+            // Cleanup listener when promise settles
+            promptPromise
+                .then(() => {
+                    ui.rl.input.removeListener('keypress', keypressHandler);
+                })
+                .catch(() => {
+                    ui.rl.input.removeListener('keypress', keypressHandler);
+                });
         }
     });
 }
