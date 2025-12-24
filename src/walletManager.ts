@@ -125,6 +125,48 @@ export async function exportKeystore(privateKey: string, password: string): Prom
     return json;
 }
 
+// --- Deletion ---
+
+export function deleteActiveAccount() {
+    const store = loadStore();
+    const wallet = store.wallets.find(w => w.id === store.activeWalletId);
+    if (!wallet) throw new Error('No active wallet');
+
+    if (!store.activeAccountAddress) throw new Error('No active account selected');
+
+    const initialLen = wallet.accounts.length;
+    wallet.accounts = wallet.accounts.filter(a => a.address !== store.activeAccountAddress);
+
+    if (wallet.accounts.length === initialLen) throw new Error('Account not found in active wallet');
+
+    // Reset active account
+    store.activeAccountAddress = wallet.accounts.length > 0 ? wallet.accounts[0].address : undefined;
+    saveStore(store);
+}
+
+export function deleteActiveWallet() {
+    const store = loadStore();
+    if (!store.activeWalletId) throw new Error('No active wallet selected');
+
+    const initialLen = store.wallets.length;
+    store.wallets = store.wallets.filter(w => w.id !== store.activeWalletId);
+
+    if (store.wallets.length === initialLen) throw new Error('Wallet not found');
+
+    // Reset active wallet
+    store.activeWalletId = store.wallets.length > 0 ? store.wallets[0].id : undefined;
+
+    // Reset active account
+    if (store.activeWalletId) {
+        const newActive = store.wallets.find(w => w.id === store.activeWalletId);
+        store.activeAccountAddress = newActive?.accounts[0]?.address;
+    } else {
+        store.activeAccountAddress = undefined;
+    }
+
+    saveStore(store);
+}
+
 // --- State Helpers ---
 
 export function getActiveWallet() {

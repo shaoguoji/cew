@@ -15,7 +15,9 @@ import {
     importKeystore,
     exportKeystore,
     getActiveWallet,
-    getActiveAccount
+    getActiveAccount,
+    deleteActiveWallet,
+    deleteActiveAccount
 } from './walletManager';
 // ... imports
 // ... imports
@@ -265,6 +267,8 @@ async function walletMenu() {
                     'Import',
                     'Export Account',
                     'Export Wallet',
+                    'Delete Current Account',
+                    'Delete Current Wallet',
                     'Back'
                 ]
             }
@@ -292,6 +296,12 @@ async function walletMenu() {
             case 'Export Wallet':
                 await exportWalletMenu();
                 break;
+            case 'Delete Current Account':
+                await safeRun(handleDeleteAccount);
+                break;
+            case 'Delete Current Wallet':
+                await safeRun(handleDeleteWallet);
+                break;
             case 'Back':
                 return;
         }
@@ -301,7 +311,7 @@ async function walletMenu() {
             // If safeRun caught cancel, we just loop.
             // If action completed, we also loop.
             // We generally want to stay in walletMenu unless 'Back' is pressed.
-            if (action !== 'Import' && action !== 'Export Account' && action !== 'Export Wallet') {
+            if (action !== 'Import' && action !== 'Export Account' && action !== 'Export Wallet' && action !== 'Delete Current Account' && action !== 'Delete Current Wallet') {
                 // The handlers above (Switch, Gen) finish quickly.
                 await waitForKeypress();
             }
@@ -313,6 +323,58 @@ async function walletMenu() {
         throw error;
     }
 }
+
+async function handleDeleteAccount() {
+    const account = getActiveAccount();
+    if (!account) return console.log(chalk.red('No active account.'));
+
+    console.log(chalk.red.bold(`\nWARNING: You are about to remove account ${account.name} (${account.address}) from this wallet.`));
+    if (account.privateKey) {
+        console.log(chalk.yellow('Make sure you have backed up the Private Key!'));
+    }
+
+    const { confirm } = await cancellablePrompt([{
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Are you sure you want to delete this account?',
+        default: false
+    }]);
+
+    if (confirm) {
+        deleteActiveAccount();
+        console.log(chalk.green('Account deleted.'));
+        updateStatus();
+    } else {
+        console.log(chalk.gray('Cancelled.'));
+    }
+    await waitForKeypress();
+}
+
+async function handleDeleteWallet() {
+    const wallet = getActiveWallet();
+    if (!wallet) return console.log(chalk.red('No active wallet.'));
+
+    console.log(chalk.red.bold(`\nWARNING: You are about to delete the ENTIRE wallet "${wallet.name}" and ALL its accounts.`));
+    console.log(chalk.yellow('This action cannot be undone from the CLI. Ensure you have your Seed Phrase or Keys backed up!'));
+
+    const { confirm } = await cancellablePrompt([{
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Are you sure you want to PERMANENTLY delete this wallet?',
+        default: false
+    }]);
+
+    if (confirm) {
+        deleteActiveWallet();
+        console.log(chalk.green('Wallet deleted.'));
+        updateStatus();
+    } else {
+        console.log(chalk.gray('Cancelled.'));
+    }
+    await waitForKeypress();
+}
+
+
 
 async function importMenu() {
     printHeader();
