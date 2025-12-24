@@ -21,7 +21,7 @@ export async function createHDWallet(name: string) {
     };
 
     // Derive first account
-    const account = mnemonicToAccount(mnemonic, { accountIndex: 0 });
+    const account = mnemonicToAccount(mnemonic, { addressIndex: 0 });
     newWallet.accounts.push({
         address: account.address,
         path: "m/44'/60'/0'/0/0",
@@ -49,16 +49,18 @@ export function importMnemonic(name: string, mnemonic: string) {
         accounts: []
     };
 
-    const account = mnemonicToAccount(mnemonic, { accountIndex: 0 });
-    newWallet.accounts.push({
-        address: account.address,
-        path: "m/44'/60'/0'/0/0",
-        name: 'Account 1'
-    });
+    for (let i = 0; i < 10; i++) {
+        const account = mnemonicToAccount(mnemonic, { addressIndex: i });
+        newWallet.accounts.push({
+            address: account.address,
+            path: `m/44'/60'/0'/0/${i}`,
+            name: `Account ${i + 1}`
+        });
+    }
 
     store.wallets.push(newWallet);
     store.activeWalletId = newWallet.id;
-    store.activeAccountAddress = account.address;
+    store.activeAccountAddress = newWallet.accounts[0].address;
     saveStore(store);
 }
 
@@ -72,7 +74,7 @@ export function deriveNewAccount(walletId: string) {
     }
 
     const index = wallet.accounts.length;
-    const account = mnemonicToAccount(wallet.mnemonic, { accountIndex: index });
+    const account = mnemonicToAccount(wallet.mnemonic, { addressIndex: index });
 
     const newAccount: Account = {
         address: account.address,
@@ -150,7 +152,7 @@ export function getActiveViemAccount() {
     }
     if (wallet.type === 'hd' && wallet.mnemonic && account.path) {
         const index = parseInt(account.path.split('/').pop() || '0');
-        return mnemonicToAccount(wallet.mnemonic, { accountIndex: index });
+        return mnemonicToAccount(wallet.mnemonic, { addressIndex: index });
     }
     throw new Error('Invalid account state');
 }
