@@ -5,7 +5,8 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
-import { getBalance, transferERC20, transferETH, setTokenAddress } from './actions';
+import { getBalance, transferERC20, transferETH, setTokenAddress, addNewToken, removeToken } from './actions';
+import { getTokens } from './walletManager';
 import { loadStore, isStoreEncrypted, isStoreInitialized, unlockStore } from './store';
 import {
     createHDWallet,
@@ -208,7 +209,7 @@ async function mainMenu() {
                     'Check Balance',
                     'Transfer ETH',
                     'Transfer ERC20',
-                    'Set ERC20 Contract Address',
+                    'Manage Tokens',
                     'Network Settings',
                     'Exit'
                 ]
@@ -228,8 +229,8 @@ async function mainMenu() {
             case 'Transfer ERC20':
                 await safeRun(async () => { await handleTransfer(); await waitForKeypress(); });
                 break;
-            case 'Set ERC20 Contract Address':
-                await safeRun(async () => { await handleSetToken(); });
+            case 'Manage Tokens':
+                await tokenMenu();
                 break;
             case 'Network Settings':
                 await networkMenu();
@@ -609,13 +610,46 @@ async function handleExportPK() {
 }
 
 async function handleTransfer() {
-    const answers = await cancellablePrompt([
-        {
+    const { getActiveNetwork } = require('./networkManager');
+    const net = getActiveNetwork();
+    const tokens = getTokens(net.chainId);
+
+    let tokenAddress = '';
+
+    // If we have saved tokens, offer selection
+    if (tokens.length > 0) {
+        const { choice } = await cancellablePrompt([{
+            type: 'list',
+            name: 'choice',
+            message: 'Select Token:',
+            choices: [
+                ...tokens.map(t => ({ name: `${t.symbol} - ${t.address}`, value: t.address })),
+                { name: 'Enter Custom Address', value: 'custom' }
+            ]
+        }]);
+
+        if (choice === 'custom') {
+            const { addr } = await cancellablePrompt([{
+                type: 'input',
+                name: 'addr',
+                message: 'Token Contract Address:',
+                default: loadTokenAddress() || '0xb8119Af65964BF83b0c44E8DD07e4bEbD3432d5c'
+            }]);
+            tokenAddress = addr;
+        } else {
+            tokenAddress = choice;
+        }
+    } else {
+        // No tokens saved, fallback to manual input but maybe prompt add?
+        const { addr } = await cancellablePrompt([{
             type: 'input',
-            name: 'token',
-            message: 'Token Contract Address:',
-            default: loadTokenAddress() || '0xb8119Af65964BF83b0c44E8DD07e4bEbD3432d5c'
-        },
+            name: 'addr',
+            message: 'Token Contract Address:'
+        }]);
+        tokenAddress = addr;
+    }
+
+    const answers = await cancellablePrompt([
         {
             type: 'input',
             name: 'to',
@@ -637,9 +671,8 @@ async function handleTransfer() {
             message: 'Max Priority Fee Per Gas (Gwei) [Optional]:',
         }
     ]);
-    // If we are here, we finished prompt. 
-    // If user cancelled in prompt, it threw, and safeRun catches it.
-    await transferERC20(answers.token, answers.to, answers.amount, answers.maxFeePerGas, answers.maxPriorityFeePerGas);
+
+    await transferERC20(tokenAddress, answers.to, answers.amount, answers.maxFeePerGas, answers.maxPriorityFeePerGas);
 }
 
 async function handleTransferETH() {
@@ -668,15 +701,85 @@ async function handleTransferETH() {
     await transferETH(answers.to, answers.amount, answers.maxFeePerGas, answers.maxPriorityFeePerGas);
 }
 
-async function handleSetToken() {
+async function tokenMenu() {
+    printHeader();
+    console.log(chalk.bold('❯ Manage Tokens (Current Network)\n'));
+
+    try {
+        const { action } = await cancellablePrompt([{
+            type: 'list',
+            name: 'action',
+            message: 'Option:',
+            choices: [
+                'List Tokens',
+                'Add Token',
+                'Remove Token',
+                'Back'
+            ]
+        }]);
+
+        switch (action) {
+            case 'List Tokens':
+                const { getActiveNetwork } = require('./networkManager');
+                const net = getActiveNetwork();
+                const tokens = getTokens(net.chainId);
+                if (tokens.length === 0) {
+                    console.log(chalk.yellow('No tokens added yet.'));
+                } else {
+                    console.table(tokens.map(t => ({ Symbol: t.symbol, Name: t.name, Address: t.address })));
+                }
+                await waitForKeypress();
+                break;
+
+            case 'Add Token':
+                await safeRun(handleAddNewToken);
+                break;
+
+            case 'Remove Token':
+                await safeRun(handleRemoveToken);
+                break;
+
+            case 'Back':
+                return;
+        }
+
+        await tokenMenu();
+
+    } catch (e) {
+        if (e instanceof CancelError) return;
+        throw e;
+    }
+}
+
+async function handleAddNewToken() {
     const { tokenAddress } = await cancellablePrompt([{
         type: 'input',
         name: 'tokenAddress',
         message: 'Enter ERC20 Token Contract Address:',
         validate: input => input.startsWith('0x') && input.length === 42 || 'Invalid address format'
     }]);
-    await setTokenAddress(tokenAddress);
+    await addNewToken(tokenAddress);
+    await waitForKeypress();
 }
+
+async function handleRemoveToken() {
+    const { getActiveNetwork } = require('./networkManager');
+    const net = getActiveNetwork();
+    const tokens = getTokens(net.chainId);
+
+    if (tokens.length === 0) return console.log(chalk.yellow('No tokens to remove.'));
+
+    const { address } = await cancellablePrompt([{
+        type: 'list',
+        name: 'address',
+        message: 'Select Token to Remove:',
+        choices: tokens.map(t => ({ name: `${t.symbol} (${t.address})`, value: t.address }))
+    }]);
+
+    removeToken(address, net.chainId);
+    console.log(chalk.green('Token removed.'));
+}
+
 
 async function networkMenu() {
     printHeader();

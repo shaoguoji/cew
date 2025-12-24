@@ -1,6 +1,6 @@
 import { generateMnemonic, mnemonicToAccount, english } from 'viem/accounts';
 import { privateKeyToAccount } from 'viem/accounts';
-import { Wallet, Account, loadStore, saveStore } from './store';
+import { Wallet, Account, loadStore, saveStore, Token } from './store';
 import { Wallet as EthersWallet } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 import chalk from 'chalk';
@@ -197,4 +197,31 @@ export function getActiveViemAccount() {
         return mnemonicToAccount(wallet.mnemonic, { addressIndex: index });
     }
     throw new Error('Invalid account state');
+}
+
+// --- Tokens ---
+
+export function getTokens(chainId: number) {
+    const store = loadStore();
+    return (store.tokens || []).filter(t => t.chainId === chainId);
+}
+
+export function addToken(token: Token) {
+    const store = loadStore();
+    if (!store.tokens) store.tokens = [];
+
+    // Check duplicate
+    const exists = store.tokens.find(t => t.address.toLowerCase() === token.address.toLowerCase() && t.chainId === token.chainId);
+    if (exists) throw new Error('Token already exists');
+
+    store.tokens.push(token);
+    saveStore(store);
+}
+
+export function removeToken(address: string, chainId: number) {
+    const store = loadStore();
+    if (!store.tokens) return;
+
+    store.tokens = store.tokens.filter(t => !(t.address.toLowerCase() === address.toLowerCase() && t.chainId === chainId));
+    saveStore(store);
 }

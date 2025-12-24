@@ -31,12 +31,21 @@ export interface Network {
     explorerUrl?: string;
 }
 
+export interface Token {
+    address: string;
+    symbol: string;
+    decimals: number;
+    chainId: number;
+    name?: string;
+}
+
 export interface StorageData {
     activeWalletId?: string;
     activeAccountAddress?: string;
     activeNetworkId?: string;
     wallets: Wallet[];
     networks: Network[];
+    tokens: Token[];
 }
 
 // Session State
@@ -86,7 +95,7 @@ export function unlockStore(password: string) {
             { id: 'sepolia', name: 'Sepolia', rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com', chainId: 11155111, symbol: 'ETH', explorerUrl: 'https://sepolia.etherscan.io' },
             { id: 'anvil', name: 'Anvil (Local)', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337, symbol: 'ETH' }
         ];
-        cachedData = { wallets: [], networks: defaultNetworks, activeNetworkId: 'sepolia' };
+        cachedData = { wallets: [], networks: defaultNetworks, activeNetworkId: 'sepolia', tokens: [] };
 
         // Save initial
         saveStore(cachedData);
@@ -125,7 +134,13 @@ export function unlockStore(password: string) {
                     { id: 'anvil', name: 'Anvil (Local)', rpcUrl: 'http://127.0.0.1:8545', chainId: 31337, symbol: 'ETH' }
                 ];
                 cachedData!.activeNetworkId = 'sepolia';
+                if (!cachedData!.tokens) cachedData!.tokens = [];
                 saveStore(cachedData!); // Save migration immediately
+            }
+            // Separate check if networks existed but tokens didn't (intermediate state)
+            if (!cachedData!.tokens) {
+                cachedData!.tokens = [];
+                saveStore(cachedData!);
             }
         } catch (e) {
             throw new Error('Incorrect password');

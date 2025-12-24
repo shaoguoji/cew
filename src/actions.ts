@@ -1,6 +1,7 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { savePrivateKey, saveTokenAddress, loadTokenAddress } from './utils';
-import { getActiveViemAccount } from './walletManager';
+import { getActiveViemAccount, getTokens, addToken, removeToken } from './walletManager';
+import { Token } from './store';
 import { getPublicClient, getWalletClient, getActiveNetwork } from './networkManager';
 import { parseEther, parseAbi, formatEther, parseGwei } from 'viem';
 import chalk from 'chalk';
@@ -29,6 +30,7 @@ export async function generateWallet() {
 }
 
 // 2. Get Balance
+// 2. Get Balance
 export async function getBalance(address?: string) {
     if (!address) {
         try {
@@ -42,53 +44,45 @@ export async function getBalance(address?: string) {
 
     const network = getActiveNetwork();
     const publicClient = getPublicClient();
-    const spinner = ora(`Fetching balance for ${address} on ${network.name}...`).start();
+    const spinner = ora(`Fetching balances for ${address} on ${network.name}...`).start();
     try {
         const balance = await publicClient.getBalance({
             address: address as `0x${string}`,
         });
 
         spinner.stop();
-        console.log(chalk.blue(`${network.symbol} Balance: ${formatEther(balance)} ${network.symbol}`));
+        console.log(chalk.blue(`ETH Balance: ${formatEther(balance)} ${network.symbol}`));
 
-        // Check for ERC20
-        const tokenAddress = loadTokenAddress();
-        if (tokenAddress) {
-            const tokenSpinner = ora(`Fetching ERC20 balance from ${tokenAddress}...`).start();
-            try {
-                const abi = parseAbi([
-                    'function balanceOf(address) view returns (uint256)',
-                    'function decimals() view returns (uint8)',
-                    'function symbol() view returns (string)'
-                ]);
+        // Fetch Tokens
+        const tokens = getTokens(network.chainId);
 
-                const [tokenBalance, decimals, symbol] = await Promise.all([
-                    publicClient.readContract({
-                        address: tokenAddress as `0x${string}`,
+        // Also check legacy .env token if exists and not in list? 
+        // For now, ignoring legacy method to encourage migration, or I could auto-add it.
+        // Let's stick to the new system.
+
+        if (tokens.length > 0) {
+            console.log(chalk.bold('\nTokens:'));
+            const abi = parseAbi([
+                'function balanceOf(address) view returns (uint256)',
+            ]);
+
+            for (const token of tokens) {
+                try {
+                    const tokenBalance = await publicClient.readContract({
+                        address: token.address as `0x${string}`,
                         abi,
                         functionName: 'balanceOf',
                         args: [address as `0x${string}`]
-                    }) as Promise<bigint>,
-                    publicClient.readContract({
-                        address: tokenAddress as `0x${string}`,
-                        abi,
-                        functionName: 'decimals'
-                    }) as Promise<number>,
-                    publicClient.readContract({
-                        address: tokenAddress as `0x${string}`,
-                        abi,
-                        functionName: 'symbol'
-                    }) as Promise<string>
-                ]);
+                    }) as bigint;
 
-                tokenSpinner.stop();
-                const formatted = Number(tokenBalance) / (10 ** decimals);
-                console.log(chalk.cyan(`${symbol} Balance: ${formatted} ${symbol}`));
-                console.log(chalk.gray(`(Contract: ${tokenAddress})`));
-
-            } catch (e) {
-                tokenSpinner.fail(chalk.red('Failed to fetch token balance (invalid contract?)'));
+                    const formatted = Number(tokenBalance) / (10 ** token.decimals);
+                    console.log(`  ${chalk.cyan(token.symbol)}: ${formatted} ${chalk.gray(`(${token.name || token.symbol})`)}`);
+                } catch (e) {
+                    console.log(`  ${chalk.red(token.symbol)}: Failed to fetch balance`);
+                }
             }
+        } else {
+            console.log(chalk.gray('\nNo tokens managed. Use "Manage Tokens" to add some.'));
         }
 
         return balance;
@@ -202,11 +196,50 @@ export async function transferETH(toAddress: string, amount: string, maxFeePerGa
 }
 
 // 4. Set Token Address
-export async function setTokenAddress(address: string) {
+// 4. Token Management
+export async function addNewToken(address: string) {
     if (!address.startsWith('0x') || address.length !== 42) {
         console.error(chalk.red('Invalid address format'));
         return;
     }
-    saveTokenAddress(address);
-    console.log(chalk.green(`Token address set to: ${address}`));
+
+    const publicClient = getPublicClient();
+    const network = getActiveNetwork();
+    const spinner = ora('Fetching token metadata...').start();
+
+    try {
+        const abi = parseAbi([
+            'function decimals() view returns (uint8)',
+            'function symbol() view returns (string)',
+            'function name() view returns (string)'
+        ]);
+
+        const [decimals, symbol, name] = await Promise.all([
+            publicClient.readContract({ address: address as `0x${string}`, abi, functionName: 'decimals' }) as Promise<number>,
+            publicClient.readContract({ address: address as `0x${string}`, abi, functionName: 'symbol' }) as Promise<string>,
+            publicClient.readContract({ address: address as `0x${string}`, abi, functionName: 'name' }) as Promise<string>
+        ]);
+
+        addToken({
+            address,
+            symbol,
+            decimals,
+            name,
+            chainId: network.chainId
+        });
+
+        spinner.succeed(chalk.green(`Added token ${symbol} (${name}) to ${network.name}!`));
+
+    } catch (e: any) {
+        spinner.fail('Failed to fetch token metadata. Is this a valid ERC20 contract on this network?');
+        console.error(e.message);
+    }
+}
+
+export { removeToken }; // re-export for cli convenience if needed, but imported directly there usually.
+
+// Legacy support (Deprecated)
+// 4. Set Token Address
+export async function setTokenAddress(address: string) {
+    console.log(chalk.yellow('Deprecated: Please use "Manage Tokens" > "Add Token" instead.'));
 }
